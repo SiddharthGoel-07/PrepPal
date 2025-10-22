@@ -11,7 +11,7 @@ const Home = () => {
   const [questiondesc,setQuestionDesc]=useState('')
   const [questionEditorial,setQuestionEditorial]=useState('')
   const [questionCode,setQuestionCode]=useState('')
-  const [showInterview, setShowInterview]=useState(true)
+  const [showInterview, setShowInterview]=useState(false)
   const [chatWidth, setChatWidth]=useState(300)
 
   const handleSubmit = (e) => {
@@ -200,7 +200,7 @@ const Home = () => {
       )}
 
       {showInterview && (
-      <Workspace apiKey={apikey} candidateName={name}/>
+      <Workspace apiKey={apikey} candidateName={name} questionTitle={questionTitle}/>
       )}
     </div>
   );
