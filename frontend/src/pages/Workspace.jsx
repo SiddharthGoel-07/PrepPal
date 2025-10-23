@@ -1,15 +1,11 @@
-
-import React, { useState, useRef } from 'react';
-import { useEffect } from 'react';
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { BufferMemory } from "langchain/memory";
-import { LLMChain } from "langchain/chains";
-import { PromptTemplate } from "langchain/prompts";
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai"; // ✅ Correct Gemini module
+import { ChatPromptTemplate } from "@langchain/core/prompts"; // ✅ Replaces old PromptTemplate
+import { StringOutputParser } from "@langchain/core/output_parsers"; // ✅ Needed for final text output
 
 export default function Workspace({ apiKey, candidateName, questionTitle }) {
     const [chatWidth, setChatWidth] = useState(300);
     const isDragging = useRef(false);
-    const chainRef = useRef(null);
     const [messages, setMessages] = useState([]);
     const transcriptBuffer=useRef([]);
     const summaryRef= useRef("");
@@ -57,14 +53,13 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
         if (!apiKey) return;
 
         const llm = new ChatGoogleGenerativeAI({
-            apiKey: apiKey,
-            model: 'gemini-pro',
-            temperature: 0.2
+            apiKey,
+            model: "gemini-1.5-flash", // newer model, faster for chat use
+            temperature: 0.2,
         });
 
-        const summaryPrompt = new PromptTemplate({
-            inputVariables: ["recent_history", "existing_summary"],
-            template: `You are an AI assistant tasked with summarizing a technical interview.
+        const summaryPrompt = ChatPromptTemplate.fromTemplate(`
+You are an AI assistant tasked with summarizing a technical interview.
 The candidate has said the following recently:
 {recent_history}
 
@@ -78,16 +73,13 @@ Update the summary with the new points, focusing on:
 - Code changes
 Keep the summary concise and relevant.
 Return only the updated summary.
-`
-        });
+        `);
+        chainRefs.current.summaryChain = summaryPrompt
+            .pipe(llm)
+            .pipe(new StringOutputParser());
 
-                chainRefs.current.summaryChain = new LLMChain({ llm, prompt: summaryPrompt });
-
-
-        const interviewerPrompt = new PromptTemplate({
-            inputVariables: ["input", "recent_turns", "summary", "workspace", "candidateName", "elapsed_time","question_title"],
-            template: `
-            ---        
+            const interviewerPrompt = ChatPromptTemplate.fromTemplate(`
+---        
             You are an AI Technical Interviewer.
 You are currently interviewing {candidateName}.
 
@@ -111,16 +103,13 @@ You are currently interviewing {candidateName}.
 - Respond **only when needed** (e.g., when the candidate is stuck, conceptually wrong, or finished a phase).  
 - Provide **hints** instead of full solutions when the candidate struggles.  
 - Respond in natural, human-like conversational style.
-- End the interview gracefully at 45 minutes.  
-`
-        });
+- End the interview gracefully at 45 minutes
+        `);
+        chainRefs.current.interviewerChain = interviewerPrompt
+            .pipe(llm)
+            .pipe(new StringOutputParser()); // ✅ replaces LLMChain
 
-                chainRefs.current.interviewerChain = new LLMChain({ llm, prompt: interviewerPrompt });
-
-
-const evaluatorPrompt = new PromptTemplate({
-  inputVariables: ["recent_input", "recent_turns", "summary", "workspace", "candidateName", "elapsed_time","question_title"],
-  template: `
+    const evaluatorPrompt = ChatPromptTemplate.fromTemplate(`
 You are an AI Evaluator for a technical interview.
 Candidate: {candidateName}
 
@@ -158,12 +147,11 @@ Respond **only in JSON** in this format:
 }},
   "feedback": "<suggestion(s)>"
 }}
-`
-});
-
-        chainRefs.current.evaluatorChain = new LLMChain({ llm, prompt: evaluatorPrompt });
-
-
+`);
+        chainRefs.current.evaluatorChain = evaluatorPrompt
+            .pipe(llm)
+            .pipe(new StringOutputParser());
+ 
     }, []);
 
     useEffect(() => {
@@ -202,43 +190,42 @@ Respond **only in JSON** in this format:
         setMessages(prev => [...prev, { sender: 'user', text }]);
         conversationRef.current.push({ input: text, response: '' });
     }
+    
+    const processBatch = useCallback(async () => {
+        if (transcriptBuffer.current.length === 0) return;
 
-    async function processBatch()
-    {
-       if(transcriptBuffer.current.length===0)
-        return;
+        const batchInput = transcriptBuffer.current.join(' ');
+        transcriptBuffer.current = [];
 
-       console.log("hi");
-       
+        const recentHistory = conversationRef.current.map(t => `Candidate: ${t.input}\nAI: ${t.response}`).join("\n");
 
-       const batchInput=transcriptBuffer.current.join(' ');
-       console.log(batchInput);
-       transcriptBuffer.current=[];
-
-         const recentHistory =conversationRef.current.map(t => `Candidate: ${t.input}\nAI: ${t.response}`).join("\n");
-          const updatedSummary = await chainRefs.current.summaryChain.call({
+        // ✅ Call summary chain
+        const updatedSummary = await chainRefs.current.summaryChain.invoke({
             recent_history: recentHistory,
-            existing_summary: summaryRef.current
+            existing_summary: summaryRef.current,
         });
+        summaryRef.current = updatedSummary || '';
 
-    // update summary safely - LLMChain.call may return a string or an object with .text
-    summaryRef.current = (updatedSummary && (updatedSummary.text || updatedSummary)) || '';
-
-        const aiResponse= await chainRefs.current.interviewerChain.call({
-             input: batchInput,
+        // ✅ Call interviewer chain
+        const aiResponse = await chainRefs.current.interviewerChain.invoke({
+            input: batchInput,
             recent_turns: recentHistory,
             summary: summaryRef.current,
             workspace: candidateWorkspace.current,
             candidateName,
             elapsed_time: getElapsedTime(),
-            question_title:questionTitle
+            question_title: questionTitle,
         });
 
-         conversationRef.current.push({ input: batchInput, response: aiResponse.text });
-        setMessages(prev => [...prev, { sender: "user", text: batchInput }, { sender: "ai", text: aiResponse.text }]);
+        conversationRef.current.push({ input: batchInput, response: aiResponse });
+        setMessages(prev => [
+            ...prev,
+            { sender: "user", text: batchInput },
+            { sender: "ai", text: aiResponse },
+        ]);
+    }, [getElapsedTime]);
 
-
-    }
+   
      
     useEffect(() => {
         const interval = setInterval(processBatch, 3000);
