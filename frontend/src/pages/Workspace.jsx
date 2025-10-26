@@ -52,9 +52,11 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
 
         if (!apiKey) return;
 
+        console.log(apiKey);
+
         const llm = new ChatGoogleGenerativeAI({
             apiKey,
-            model: "gemini-1.5-flash", // newer model, faster for chat use
+            model: "gemini-2.0-flash", // newer model, faster for chat use
             temperature: 0.2,
         });
 
@@ -155,6 +157,8 @@ Respond **only in JSON** in this format:
     }, []);
 
     useEffect(() => {
+
+        let count=0;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
         if (!SpeechRecognition) return; // not supported in this browser
 
@@ -172,6 +176,25 @@ Respond **only in JSON** in this format:
                 transcriptBuffer.current.push(lastResultObj[0].transcript); 
             }
         };
+
+        recognition.onstart = () => {
+            console.log("🎧 onstart: listening...");
+        count++;
+        }
+
+        recognition.onend = () => {
+    console.warn("⚠️ Speech recognition stopped, restarting...");
+    try {
+        console.log("onend");
+
+        if(count===1)
+           setTimeout(() => recognition.start(), 500); // wait before restart 
+        // 👈 automatically restart listening
+    } catch (err) {
+      console.error("Error restarting speech recognition:", err);
+    }
+  };
+
 
         try {
             recognition.start();
