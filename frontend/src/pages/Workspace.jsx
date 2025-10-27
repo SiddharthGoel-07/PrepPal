@@ -38,6 +38,42 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
         isDragging.current = false;
     }
 
+    const speakText = (text) => {
+  if (!window.speechSynthesis) {
+    alert("Sorry, your browser does not support text to speech.");
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US"; // choose accent/language
+  utterance.rate = 1;       // speed (0.1 - 10)
+  utterance.pitch = 1;      // tone (0 - 2)
+  utterance.volume = 1;     // volume (0 - 1)
+  
+  // Optional: callback when speech ends
+  utterance.onend = () => {
+    console.log("Speech finished");
+  };
+
+  utterance.onboundary = (event) => {
+    const currentText=text.substring(0, event.charIndex);
+     setMessages(prev => {
+    // if last message is from AI, update it
+    if (prev.length > 0 && prev[prev.length - 1].sender === "ai") {
+      const updated = [...prev];
+      updated[updated.length - 1] = { sender: "ai", text: currentText };
+      return updated;
+    }
+
+    // otherwise, add a new AI message
+    return [...prev, { sender: "ai", text: currentText }];
+  });
+    };
+
+  window.speechSynthesis.speak(utterance);
+};
+
+
     React.useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
@@ -168,6 +204,8 @@ Respond **only in JSON** in this format:
         recognition.lang = 'en-US';
 
         recognition.onresult = (event) => {
+
+            window.speechSynthesis.cancel(); // stop any ongoing speech
             const lastResultObj = event.results[event.results.length - 1];
 
             console.log(lastResultObj[0].transcript);
@@ -180,14 +218,14 @@ Respond **only in JSON** in this format:
         recognition.onstart = () => {
             console.log("🎧 onstart: listening...");
         count++;
+        console.log(count);
         }
 
         recognition.onend = () => {
     console.warn("⚠️ Speech recognition stopped, restarting...");
     try {
         console.log("onend");
-
-        if(count===1)
+        if(count>=1)
            setTimeout(() => recognition.start(), 500); // wait before restart 
         // 👈 automatically restart listening
     } catch (err) {
@@ -243,9 +281,9 @@ Respond **only in JSON** in this format:
         conversationRef.current.push({ input: batchInput, response: aiResponse });
         setMessages(prev => [
             ...prev,
-            { sender: "user", text: batchInput },
-            { sender: "ai", text: aiResponse },
+            { sender: "user", text: batchInput }
         ]);
+        speakText(aiResponse);
     }, [getElapsedTime]);
 
    
