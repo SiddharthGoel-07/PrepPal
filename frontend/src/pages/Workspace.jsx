@@ -15,6 +15,7 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
   const summaryRef = useRef("");
   const conversationRef = useRef([]);
   const lastUsed = useRef(0);
+  const lineCount=useRef(0);
   const candidateWorkspace = useRef("");
   const chainRefs = useRef({
     summaryChain: null,
@@ -320,6 +321,22 @@ Respond **only in JSON** in this format, return a valid json:
     const interval = setInterval(processBatch, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(()=>{
+
+    
+    const newCount=code.split("\n").length;
+    const difference=newCount-lineCount.current;
+
+    if(difference>=3)
+    {
+      const newLines = code.split("\n").slice(-difference).join("\n");
+
+    transcriptBuffer.current.push(newLines);
+
+    lineCount.current = newCount;
+    }
+  },[code]);
 
   function getElapsedTime() {
     return Math.floor((Date.now() - startTimeRef.current) / 60000); // minutes
