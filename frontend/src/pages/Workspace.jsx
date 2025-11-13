@@ -254,7 +254,7 @@ Respond **only in JSON** in this format, return a valid json:
     };
   }, []);
 
-  // simple handler to send message from input box
+  // simple handler to send message from input bo
   function handleSendMessage(text) {
     if (!text) return;
     setMessages(prev => [...prev, { sender: 'user', text }]);
