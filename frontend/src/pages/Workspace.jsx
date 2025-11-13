@@ -16,6 +16,7 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
   const conversationRef = useRef([]);
   const lastUsed = useRef(0);
   const lineCount=useRef(0);
+  const isOn=useRef(false);
   const candidateWorkspace = useRef("");
   const chainRefs = useRef({
     summaryChain: null,
@@ -254,7 +255,7 @@ Respond **only in JSON** in this format, return a valid json:
     };
   }, []);
 
-  // simple handler to send message from input bo
+  // simple handler to send message from input box
   function handleSendMessage(text) {
     if (!text) return;
     setMessages(prev => [...prev, { sender: 'user', text }]);
@@ -262,7 +263,21 @@ Respond **only in JSON** in this format, return a valid json:
   }
 
   const processBatch = useCallback(async () => {
-    if (transcriptBuffer.current.length === 0) return;
+
+    if(isOn.current===true)
+      return;
+
+    
+    isOn.current=true;
+      
+    if (transcriptBuffer.current.length === 0)
+      {
+        isOn.current=false; 
+        return;
+      }
+
+      
+    console.log("inside ");
 
     const batchInput = transcriptBuffer.current.join(' ');
     transcriptBuffer.current = [];
@@ -289,6 +304,8 @@ Respond **only in JSON** in this format, return a valid json:
 
     let elapsed = getElapsedTime()
 
+    // ✅ Call evaluator chain
+  
     if (lastUsed.current !== elapsed) {
       let result = await chainRefs.current.evaluatorChain.invoke({
         candidateName: candidateName,
@@ -313,6 +330,8 @@ Respond **only in JSON** in this format, return a valid json:
       { sender: "user", text: batchInput }
     ]);
     speakText(aiResponse);
+
+    isOn.current=false;
   }, [getElapsedTime]);
 
 
