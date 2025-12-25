@@ -6,6 +6,7 @@ const Home = () => {
   const [darkMode, setDarkMode] = useState(false);
 
   const [name,setName] = useState('')
+  const [modelType, setModelType] = useState('gemini') // 'gemini' or 'groq'
   const [apikey,setApikey] = useState('')
   const [questionTitle,setQuestionTitle]=useState('')
   const [questiondesc,setQuestionDesc]=useState('')
@@ -19,6 +20,7 @@ const Home = () => {
     e.preventDefault();
     const data = {
       name,
+      modelType,
       apikey,
       questionTitle,
       questiondesc,
@@ -95,12 +97,32 @@ const Home = () => {
             <label className={
               `block text-sm font-medium mb-1 transition-colors duration-300 ` +
               (darkMode ? 'text-gray-200' : 'text-gray-700')
-            }>API Key</label>
+            }>Model Selection</label>
+            <select
+              value={modelType}
+              onChange={(e) => setModelType(e.target.value)}
+              className={
+                `w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors duration-300 ` +
+                (darkMode
+                  ? 'border-gray-700 bg-gray-800 text-gray-100'
+                  : 'border-gray-300 bg-white text-gray-900')
+              }
+            >
+              <option value="gemini">Gemini 2.5 Flash</option>
+              <option value="groq">Groq (Mixtral/Llama)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={
+              `block text-sm font-medium mb-1 transition-colors duration-300 ` +
+              (darkMode ? 'text-gray-200' : 'text-gray-700')
+            }>{modelType === 'gemini' ? 'Gemini API Key' : 'Groq API Key'}</label>
             <input
               type="text"
               value={apikey}
               onChange={(e) => setApikey(e.target.value)}
-              placeholder="Enter your API key"
+              placeholder={modelType === 'gemini' ? 'Enter your Gemini API key' : 'Enter your Groq API key'}
               className={
                 `w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors duration-300 ` +
                 (darkMode
@@ -200,7 +222,7 @@ const Home = () => {
       )}
 
       {showInterview && (
-      <Workspace apiKey={apikey} candidateName={name} questionTitle={questionTitle}/>
+      <Workspace apiKey={apikey} modelType={modelType} candidateName={name} questionTitle={questionTitle}/>
       )}
     </div>
   );

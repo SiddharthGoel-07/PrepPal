@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"; // ✅ Correct Gemini module
+import { ChatGroq } from "@langchain/groq"; // ✅ Groq module
 import { ChatPromptTemplate } from "@langchain/core/prompts"; // ✅ Replaces old PromptTemplate
 import { StringOutputParser } from "@langchain/core/output_parsers"; // ✅ Needed for final text output
 import Editor from "@monaco-editor/react";
 
-export default function Workspace({ apiKey, candidateName, questionTitle }) {
+export default function Workspace({ apiKey, modelType, candidateName, questionTitle }) {
   const [chatWidth, setChatWidth] = useState(300);
   const isDragging = useRef(false);
   const [messages, setMessages] = useState([]);
@@ -57,9 +58,18 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
     utterance.pitch = 1;      // tone (0 - 2)
     utterance.volume = 1;     // volume (0 - 1)
 
-    // Optional: callback when speech ends
+    // Callback when speech ends - ensure full text is displayed
     utterance.onend = () => {
       console.log("Speech finished");
+      setMessages(prev => {
+        // Update with full text when speech finishes
+        if (prev.length > 0 && prev[prev.length - 1].sender === "ai") {
+          const updated = [...prev];
+          updated[updated.length - 1] = { sender: "ai", text: text };
+          return updated;
+        }
+        return prev;
+      });
     };
 
     utterance.onboundary = (event) => {
@@ -96,12 +106,24 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
     if (!apiKey) return;
 
     console.log(apiKey);
+    console.log("Model Type:", modelType);
 
-    const llm = new ChatGoogleGenerativeAI({
-      apiKey,
-      model: "gemini-2.5-flash-lite", // newer model, faster for chat use
-      temperature: 0.2,
-    });
+    // Initialize LLM based on model type
+    let llm;
+    
+    if (modelType === 'gemini') {
+      llm = new ChatGoogleGenerativeAI({
+        apiKey,
+        model: "gemini-2.5-flash", // newer model, faster for chat use
+        temperature: 0.2,
+      });
+    } else if (modelType === 'groq') {
+      llm = new ChatGroq({
+        apiKey,
+        model: "llama-3.3-70b-versatile", // Groq's faster model
+        temperature: 0.2,
+      });
+    }
 
     const summaryPrompt = ChatPromptTemplate.fromTemplate(`
 You are an AI assistant tasked with summarizing a technical interview.
@@ -171,36 +193,18 @@ Candidate: {candidateName}
 Instructions:
 - If elapsed_time is less than 45 minutes:
   - Evaluate the candidate **only based on the latest input and recent changes**.
-  - Provide scores for the following 5 metrics (0–10):
-    1. DSA / Problem-Solving Ability
-    2. Logical Reasoning
-    3. Communication Skills
-    4. Testing Ability (writing diverse test cases)
-    5. Code Cleanliness & Readability
-  - Give **one short constructive suggestion**.
+  - Give **one short constructive suggestion** for improvement.
 - If elapsed_time is 45 minutes or more:
   - Evaluate the candidate **based on the entire interview**, using the summary.
-  - Provide **overall scores** for all 5 metrics.
   - Give **2–3 major suggestions** addressing the whole interview.
 
-Respond **only in JSON** in this format, return a valid json:
-
-{{
-  "metrics": {{
-    "dsa": <score_out_of_10>,
-    "logic": <score_out_of_10>,
-    "communication": <score_out_of_10>,
-    "testing": <score_out_of_10>,
-    "code_cleanliness": <score_out_of_10>
-}},
-  "feedback": "<suggestion(s)>"
-}}
+Respond with only plain text feedback, no JSON or metrics.
 `);
     chainRefs.current.evaluatorChain = evaluatorPrompt
       .pipe(llm)
       .pipe(new StringOutputParser());
 
-  }, []);
+  }, [modelType]);
 
   useEffect(() => {
 
@@ -316,11 +320,9 @@ Respond **only in JSON** in this format, return a valid json:
         question_title: questionTitle,
       });
 
-      result = result.slice(7, -3);
       console.log(result);
-      const data = JSON.parse(result);
-      setresults(data);
-      console.log(data.feedback);
+      setresults(result);
+      console.log(result);
       lastUsed.current = elapsed;
     }
 
@@ -409,29 +411,9 @@ Respond **only in JSON** in this format, return a valid json:
           )}
 
           {results && (
-            <div className="space-y-3">
-              {Object.entries(results.metrics).map(([metric, value]) => (
-                <div key={metric} className="flex justify-between items-center">
-                  <span className="capitalize text-gray-600">{metric}</span>
-
-                  {/* Bar to represent score */}
-                  <div className="flex-1 ml-4 bg-gray-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${value === 1 ? "bg-green-500" : "bg-red-400"
-                        }`}
-                      style={{ width: `${value * 100}%` }}
-                    ></div>
-                  </div>
-
-                  <span className="ml-3 text-gray-700 font-medium">{value}</span>
-                </div>
-              ))}
-
-              {/* Feedback */}
-              <div className="mt-4 p-3 bg-white rounded-lg border border-gray-300 text-gray-700">
-                <strong>Feedback: </strong>
-                {results.feedback}
-              </div>
+            <div className="p-3 bg-white rounded-lg border border-gray-300 text-gray-700">
+              <strong>Feedback: </strong>
+              {results}
             </div>
           )}
         </div>

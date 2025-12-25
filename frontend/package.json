@@ -13,6 +13,7 @@
     "@google/generative-ai": "^0.24.1",
     "@langchain/core": "^1.0.1",
     "@langchain/google-genai": "^1.0.0",
+    "@langchain/groq": "^0.0.11",
     "@monaco-editor/react": "^4.7.0",
     "langchain": "^1.0.1",
     "node-fetch": "^3.3.2",
