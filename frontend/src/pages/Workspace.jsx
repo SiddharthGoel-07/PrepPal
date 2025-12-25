@@ -99,7 +99,7 @@ export default function Workspace({ apiKey, candidateName, questionTitle }) {
 
     const llm = new ChatGoogleGenerativeAI({
       apiKey,
-      model: "gemini-2.0-flash", // newer model, faster for chat use
+      model: "gemini-2.5-flash-lite", // newer model, faster for chat use
       temperature: 0.2,
     });
 
